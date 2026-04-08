@@ -1,0 +1,7 @@
+Data Types: 
+bool
+int
+float
+char
+string
+
