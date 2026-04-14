@@ -21,6 +21,8 @@ class SectorScan {
         const int angleTopBound = -30;
         const int angleBottomBound = 30;
 
+        float rollOffset, pitchOffet, yawOffset;
+
         // Arrays and Buffers
         Scan1D scan2D[MaxScanSize]; 
         float lutSin[angleRange]; 
@@ -62,8 +64,21 @@ class SectorScan {
 
         // Receives a new "ping" and stores it in a buffer.
         int registerEcho(Scan1D newScan){
+            if(firstScan == 0){
+                firstScan = 1;
+                rollOffset = newScan.roll;
+                pitchOffet = newScan.pitch;
+                yawOffset = newScan.yaw;
+            }
+
             // Store the new scan data in the buffer
             if (currentScanIndex < MaxScanSize) {
+                // apply offset
+                newScan.roll = newScan.roll - rollOffset;
+                newScan.pitch = newScan.pitch - pitchOffet;
+                newScan.yaw = newScan.yaw - yawOffset;
+
+                // save scan
                 scan2D[currentScanIndex] = newScan;
                 currentScanIndex++;
             }
@@ -152,7 +167,6 @@ class SectorScan {
             tft.print("FREQ: ");
             tft.print(probeFrequency);
             tft.println(" MHz");
-
             
             tft.setCursor(xPos * 2 + 10, yPos + lineHeight*3 + gridOffsetY);
             tft.print("Medium: ");
@@ -211,7 +225,6 @@ class SectorScan {
             return 0;
         }
     };
-
 
 SectorScan myScan;
 

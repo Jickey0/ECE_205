@@ -38,11 +38,10 @@ const int pinENA = 7;   // Output Enable (OE)
 
 int analogPin = A0; // output from ultrasound sensor connected to A0
 
-struct SensorData {
+struct Scan1D {
     float roll, pitch, yaw; // BNO08x orientation data
-    unsigned long start_time;
-    unsigned long stop_time;
-    unsigned long values[ADC_SAMPLES];
+    unsigned long total_time;
+    uint16_t values[ADC_SAMPLES];
     float average_time_per_conversion;
 };
 
@@ -53,7 +52,7 @@ struct EulerAngles {
 unsigned int i; // index for storing ADC values
 
 // define an array to store multiple readings (e.g. for multiple pulses)
-SensorData SensorDataArray[MAX_SAMPLES]; 
+Scan1D SensorDataArray[MAX_SAMPLES]; 
 unsigned int SensorDataIndex = 0;
 
 
@@ -183,8 +182,11 @@ void loop() {
 
     if (sensorValue.sensorId == SH2_GAME_ROTATION_VECTOR) {
         EulerAngles angles = quaternionsToDegrees(sensorValue.un.gameRotationVector.real, sensorValue.un.gameRotationVector.i, sensorValue.un.gameRotationVector.j, sensorValue.un.gameRotationVector.k);
-        //float orientationChange = AngleRelativeChange(sensorValue.un.gameRotationVector.real, sensorValue.un.gameRotationVector.i, sensorValue.un.gameRotationVector.j, sensorValue.un.gameRotationVector.k);
-        if (angles.roll - SensorDataArray[SensorDataIndex].roll > angleCutoff) {
+        
+        // Check against the last saved index (SensorDataIndex - 1)
+        float lastRoll = (SensorDataIndex == 0) ? 0 : SensorDataArray[SensorDataIndex - 1].roll;
+
+        if (abs(angles.roll - lastRoll) > angleCutoff) {
             Serial.print("Significant roll change detected: ");
             Serial.println(angles.roll);
 
@@ -201,14 +203,14 @@ void loop() {
             
             // --- LOG DATA AFTER TRIGGER ---
             // Store intervals of ADC data
-            SensorDataArray[SensorDataIndex].start_time = micros(); 
+            long start_time = micros(); 
             for(i=0;i<ADC_SAMPLES;i++)
             {
                 while((ADC->ADC_ISR & 0x80)==0); // wait for conversion
                 SensorDataArray[SensorDataIndex].values[i]=ADC->ADC_CDR[7]; //get values
             }
-            SensorDataArray[SensorDataIndex].stop_time = micros();
-            SensorDataArray[SensorDataIndex].average_time_per_conversion = (float)(SensorDataArray[SensorDataIndex].stop_time-SensorDataArray[SensorDataIndex].start_time)/100;
+            SensorDataArray[SensorDataIndex].total_time = micros() - start_time;
+            SensorDataArray[SensorDataIndex].average_time_per_conversion = (float)(SensorDataArray[SensorDataIndex].total_time)/ADC_SAMPLES;
 
             // Store the BNO08x data as well
             SensorDataArray[SensorDataIndex].roll = angles.roll;
@@ -217,7 +219,7 @@ void loop() {
 
             // Print timing results for ADC readings --> only for debugging, not for real-time use
             Serial.print("Total time: ");
-            Serial.println(SensorDataArray[SensorDataIndex].stop_time-SensorDataArray[SensorDataIndex].start_time); 
+            Serial.println(SensorDataArray[SensorDataIndex].total_time); 
             Serial.print(" microseconds");
 
             Serial.print("number of samples: ");

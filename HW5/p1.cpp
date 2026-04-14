@@ -26,14 +26,29 @@ class BicycleSpeedometer {
         }
 
         void setTime(float t){
-            time = t
+            time = t;
         }
 
-        int computeAverageSpeed(){
-            return distance / time
+        float computeAverageSpeed(){
+            return (distance * 60) / time; // return in miles per hour
         }
-}
+};
 
 int main(){
-    
+    BicycleSpeedometer myBikeSpeedomter;
+
+    float distance;
+    float time;
+
+    cout << "Welcome to Bicycle Speedometer 1.00" << endl;
+
+    cout << "Input distance in miles" << endl;
+    cin >> distance;
+    myBikeSpeedomter.setDistance(distance);
+
+    cout << "Input time in minutes" << endl;
+    cin >> time;
+    myBikeSpeedomter.setTime(time);
+
+    cout << "Your average speed is: " << myBikeSpeedomter.computeAverageSpeed() << " mph" << endl;
 }
