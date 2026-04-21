@@ -67,6 +67,10 @@ class HomeGUI {
             drawHomeScreen();
         }
 
+        int getCurrentMode(){
+            return currentMode;
+        }
+
         void drawHomeScreen(){
             tft.fillScreen(TFT_BLACK);
             drawButtons();
@@ -638,6 +642,98 @@ class SingleScan {
 SingleScan myScan1D;
 
 
+void runSectorScan(){
+    // initialize the scan system
+    myScan.begin();
+
+    delay(100);  // may comment out later for faster response, but helps with serial printing
+    if (bno08x.wasReset()) {
+        setReports();
+    }
+
+    // 2. Check for data (non-blocking)
+    if (!bno08x.getSensorEvent(&sensorValue)) {
+        return; 
+    }
+
+    if (sensorValue.sensorId == SH2_GAME_ROTATION_VECTOR) {
+        EulerAngles angles = quaternionsToDegrees(sensorValue.un.gameRotationVector.real, sensorValue.un.gameRotationVector.i, sensorValue.un.gameRotationVector.j, sensorValue.un.gameRotationVector.k);
+        
+        // Check against the last saved index (SensorDataIndex - 1)
+        float lastRoll = (lastAngle == 0) ? 0 : lastAngle;
+
+        if (abs(angles.roll - lastRoll) > angleCutoff) {
+            Serial.print("Significant roll change detected: ");
+            Serial.println(angles.roll);
+
+            // --- TRIGGER PULSE IMMEDIATELY ---
+            // This minimizes the "latency" between data arrival and hardware trigger
+            INA_HIGH;
+            INB_HIGH;
+            __asm__ __volatile__("nop\n\t"); // 100ns-ish pulse
+            INA_LOW;
+            INB_LOW;
+            __asm__ __volatile__("nop\n\t");
+            INA_LOW;
+            INB_HIGH; // Reset to idle state
+            
+            // --- LOG DATA AFTER TRIGGER ---
+            // Store intervals of ADC data
+            long start_time = micros(); 
+            for(i=0;i<ADC_SAMPLES;i++)
+            {
+                while((ADC->ADC_ISR & 0x80)==0); // wait for conversion
+                currentScan.values[i]=ADC->ADC_CDR[7]; //get values
+            }
+            currentScan.total_time = micros() - start_time;
+            currentScan.average_time_per_conversion = (float)(currentScan.total_time)/ADC_SAMPLES;
+
+            // Store the BNO08x data as well
+            currentScan.roll = angles.roll;
+            currentScan.pitch = angles.pitch;
+            currentScan.yaw = angles.yaw;
+
+            // Print timing results for ADC readings --> only for debugging, not for real-time use
+            Serial.print("Total time: ");
+            Serial.println(currentScan.total_time); 
+            Serial.print(" microseconds");
+
+            Serial.print("number of samples: ");
+            Serial.println(ADC_SAMPLES);
+
+            Serial.print("Average time per conversion: ");
+            Serial.println(currentScan.average_time_per_conversion);
+            Serial.print(" microseconds");
+
+            // Display the orientation data as well
+            Serial.print("Orientation - Roll: ");
+            Serial.print(angles.roll);
+            Serial.print(" Pitch: ");
+            Serial.print(angles.pitch);
+            Serial.print(" Yaw: ");
+            Serial.println(angles.yaw);
+
+            // save data into 2D scan image
+            myScan.registerEcho(currentScan);
+
+            // store angle for comparison later
+            lastAngle = angles.roll;
+            SensorDataIndex++;
+        }
+    }
+
+    if (SensorDataIndex >= MAX_SAMPLES) {
+        Serial.println("Max samples reached, stopping data collection.");
+        // (scanStartXPos, scanStartYPos, gradientXPos, gradientYPos, scanRadius)
+        myScan.scanConvert(160, 30, 5, 24, 280); // Display the scans
+
+        displayButtons();
+
+        return;
+    }
+}
+
+
 // INITIALIZATION -- runs once at startup ----------------------------------
 void setup(void) {
   Serial.begin(115200);
@@ -707,45 +803,5 @@ void loop() {
 
     tft.fillScreen(TFT_BLACK);
 
-    // initialize the scan system
-    myScan.begin();
-
-    // generate example data and register it in the scan system
-    for (int i = 0; i < 200; i++) { // Simulate receiving 100 scans
-        myScan.registerEcho(generateExampleData());
-    }
-
-    // (scanStartXPos, scanStartYPos, gradientXPos, gradientYPos, scanRadius)
-    myScan.scanConvert(160, 30, 5, 24, 300); // Display the scans
-
-    displayButtons();
-
-    delay(10000);
-    tft.fillScreen(TFT_BLACK);
-    myGUI.changeHighlightedMode(3);
-    delay(6000);
-
-    tft.fillScreen(TFT_BLACK);
-
-    // initialize the scan system
-    myScan1D.begin();
-
-    // generate example data and register it in the scan system
-    for (int i = 0; i < 10; i++) { // Simulate receiving 100 scans
-        myScan1D.registerEcho(generateExampleData());
-    }
-
-    // define scan display parameters
-    int scanStartXPos = 160;
-    int scanStartYPos = 30;
-    int gradientXPos = 5;
-    int gradientYPos = 24;
-    int scanLength = 300;
-    int scanWidth = 100;
-
-    myScan1D.scanConvert(scanStartXPos, scanStartYPos, gradientXPos, gradientYPos, scanLength, scanWidth);
-
-    displayButtons();
-
-    while(1);
+    runSectorScan();
 }
