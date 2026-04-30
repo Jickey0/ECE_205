@@ -228,7 +228,7 @@ class SectorScanLive {
             return 0;
         }
 
-        void displayScanStats(){
+        void displayAll(){
             // intesity gradient
             displayIntensityGradient(gradientXPos, gradientYPos); 
 
@@ -291,7 +291,7 @@ void loop() {
     // myScan.defineParameters(scanStartXPos, scanStartYPos, gradientXPos, gradientYPos, scanRadius)
     // myScan.save(); // Display the scans
 
-    displayScanStats();
+    displayAll();
     displayButtons();
 
     while(1);

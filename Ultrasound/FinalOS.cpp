@@ -309,7 +309,6 @@ class SectorScan {
         }
     };
 
-
 SectorScan myScan;
 
 // Fill the scan2D buffer with example data for testing
@@ -341,7 +340,6 @@ void displayButtons(){
     tft.setTextFont(2);
     tft.print("SAVE");
 }
-
 
 void setup(void) {
     // init LCD screen
